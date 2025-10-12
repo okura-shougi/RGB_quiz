@@ -1,566 +1,204 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>イラスト色当てクイズ（カスタム画像）</title>
+<meta charset="UTF-8">
+<title>色当てクイズ</title>
 <style>
-  :root{
-    --bg:#0f1720; --panel:#0b1220; --muted:#9aa6b2; --accent:#6dd3ff;
-    --card:#0e1620; --glass:rgba(255,255,255,0.03);
+  body {
+    font-family: sans-serif;
+    background: #f7f7f7;
+    text-align: center;
+    margin: 20px;
   }
-  html,body{height:100%;margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,"Hiragino Kaku Gothic ProN",meiryo,Arial;}
-  body{background:linear-gradient(180deg,#07101a,#0b1622);color:#e6eef6;display:flex;align-items:flex-start;justify-content:center;padding:28px;}
-  .app{width:980px;max-width:calc(100% - 40px);}
-  header{display:flex;align-items:center;gap:16px;margin-bottom:14px;}
-  h1{font-size:18px;margin:0;}
-  .controls{display:flex;gap:10px;align-items:center;margin-bottom:12px;}
-  .panel{background:var(--card);border-radius:12px;padding:12px;box-shadow:0 6px 24px rgba(2,6,12,0.6);}
-  #canvasWrap{display:flex;gap:12px;}
-  canvas{background:#111;margin-right:6px;border-radius:8px;max-width:100%;height:auto;display:block;}
-  .sidebar{width:320px;min-width:240px;}
-  .btn{background:linear-gradient(180deg,var(--accent),#2bb0ff);border:none;padding:8px 12px;border-radius:8px;color:#022034;font-weight:700;cursor:pointer;}
-  .btn:disabled{opacity:0.4;cursor:default}
-  .muted{color:var(--muted);font-size:13px}
-  .palette{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
-  .swatch{width:52px;height:40px;border-radius:6px;cursor:pointer;border:2px solid rgba(0,0,0,0.3);box-shadow:inset 0 -6px 10px rgba(0,0,0,0.2)}
-  .swatch:active{transform:scale(0.98)}
-  .info{margin-top:10px;font-size:13px}
-  .scoreboard{margin-top:10px}
-  .rounds{display:flex;gap:8px;margin-top:8px}
-  .roundDot{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--glass);color:var(--muted);font-size:13px}
-  .highlight{outline:2px solid rgba(255,255,255,0.06);padding:6px;border-radius:8px}
-  footer{margin-top:12px;color:var(--muted);font-size:13px}
-  .small{font-size:12px;color:var(--muted)}
-  #resultBox{margin-top:12px;padding:10px;background:linear-gradient(180deg, rgba(255,255,255,0.02), transparent);border-radius:8px}
-  .marker{position:absolute;border:2px dashed #fff8;border-radius:50%;pointer-events:none;mix-blend-mode:screen}
-  .topRow{display:flex;gap:10px;align-items:center}
-  input[type="file"]{display:none}
-  label.fileBtn{background:transparent;border:1px dashed rgba(255,255,255,0.06);padding:8px 12px;border-radius:8px;cursor:pointer;color:var(--muted)}
-  .settings{margin-left:auto;display:flex;gap:10px;align-items:center}
-  .hint{font-size:12px;color:#9db8c9}
+  canvas {
+    border: 2px solid #ccc;
+    margin-top: 10px;
+    cursor: crosshair;
+    border-radius: 8px;
+  }
+  #palette {
+    margin-top: 20px;
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+  }
+  .colorBox {
+    width: 60px;
+    height: 60px;
+    border-radius: 8px;
+    border: 2px solid #999;
+    cursor: pointer;
+    transition: transform 0.1s ease;
+  }
+  .colorBox:hover {
+    transform: scale(1.1);
+  }
+  #status {
+    margin-top: 10px;
+    font-size: 18px;
+  }
+  button {
+    margin: 10px;
+    padding: 10px 20px;
+    font-size: 16px;
+    cursor: pointer;
+    border-radius: 6px;
+    background: #2196f3;
+    color: white;
+    border: none;
+  }
+  #fileInput {
+    margin-top: 10px;
+  }
 </style>
 </head>
 <body>
-  <div class="app">
-    <header>
-      <h1>イラスト色当てクイズ — カスタム画像で練習</h1>
-      <div class="muted">画像から色感覚を鍛えるミニゲーム（5問）</div>
-    </header>
 
-    <div class="panel" id="mainPanel">
-      <div class="topRow">
-        <div class="controls">
-          <label class="fileBtn">
-            画像を選択
-            <input id="fileInput" type="file" accept="image/*">
-          </label>
-          <button class="btn" id="startBtn" disabled>スタート</button>
-          <button class="btn" id="nextBtn" disabled>次の問題へ</button>
-          <div class="settings small">
-            <label class="hint">ラウンド: <select id="roundCount"><option>5</option><option>3</option><option>7</option></select></label>
-          </div>
-        </div>
-        <div class="settings">
-          <div class="small">スコアの計算: 色(80%) + 速さ(20%)</div>
-        </div>
-      </div>
-
-      <div id="canvasWrap" style="position:relative; margin-top:12px;">
-        <div style="flex:1;min-width:420px;">
-          <div style="position:relative;">
-            <canvas id="imgCanvas" width="720" height="480"></canvas>
-            <div id="marker" class="marker" style="display:none;width:48px;height:48px;left:0;top:0"></div>
-          </div>
-          <div class="small muted" style="margin-top:8px">表示は縮小されることがあります。クリックで拡大表示・位置確認。</div>
-        </div>
-
-        <aside class="sidebar">
-          <div class="panel">
-            <div class="muted">Round</div>
-            <div class="rounds" id="rounds"></div>
-
-            <div style="margin-top:10px;">
-              <div class="muted">パレット（正解はこの中）</div>
-              <div class="palette" id="palette"></div>
-            </div>
-
-            <div class="info">
-              <div>残り: <span id="remaining">0</span></div>
-              <div>タイム制限: <span id="timeLeft">--</span> 秒</div>
-              <div>現在スコア: <strong id="currentScore">0</strong></div>
-              <div id="resultBox" style="display:none"></div>
-            </div>
-
-            <div style="margin-top:8px;">
-              <div class="muted">オプション</div>
-              <label class="small"><input type="checkbox" id="showHint" checked> 出題位置を一瞬表示（1秒）</label>
-            </div>
-          </div>
-
-          <div class="panel" style="margin-top:10px;">
-            <div class="muted">総合スコア</div>
-            <div style="font-size:20px;font-weight:700;margin-top:8px" id="totalScore">0</div>
-            <div class="small muted" style="margin-top:8px">各ラウンドの色差と速度でスコアが変わります。</div>
-            <div style="margin-top:8px;">
-              <button class="btn" id="restartBtn" disabled>リセット</button>
-            </div>
-          </div>
-        </aside>
-      </div>
-
-      <footer>
-        <div class="muted">遊び方：画像を選んで「スタート」。画像のランダム箇所が一瞬（または非表示）で示されます。示された箇所の色をパレットから選んでください。スコアは色差（正確さ）と早さで決まります。</div>
-      </footer>
-    </div>
-  </div>
+<h1>🎨 色当てクイズ 🎯</h1>
+<p>画像をアップロードして「スタート」！</p>
+<input type="file" id="fileInput" accept="image/*">
+<br>
+<canvas id="gameCanvas" width="400" height="300"></canvas>
+<br>
+<button id="startBtn">スタート</button>
+<div id="status"></div>
+<div id="palette"></div>
 
 <script>
-/*
-  イラスト色当てクイズ（ローカルブラウザ単体）
-  - 画像をアップロード
-  - 指定回数のラウンド（デフォルト5）
-  - 各ラウンド: ランダム座標を選ぶ（安全マージンあり）
-      - 正解色 = その座標を中心に sampleSize x sampleSize の平均RGB
-      - パレット = 正解色 + N個の擬似的な distractor（HSV変換でずらす）
-  - 正解は見せず、位置を一瞬だけ表示（オプション）
-  - ユーザーがスウォッチを選択した瞬間に色差（RGB Euclidian）と経過時間でスコア計算
-  - スコアは 0-100/ラウンド を最大にし、合計を表示
-*/
-
-// --- ユーティリティ ---
-function clamp(v,a,b){ return Math.max(a,Math.min(b,v)); }
-function rgbToHex(r,g,b){ return '#'+[r,g,b].map(x=>x.toString(16).padStart(2,'0')).join(''); }
-function hexToRgb(hex){
-  hex = hex.replace('#','');
-  if(hex.length===3) hex = hex.split('').map(s=>s+s).join('');
-  const n = parseInt(hex,16);
-  return [(n>>16)&255, (n>>8)&255, n&255];
-}
-function rgbDist(a,b){ // Euclidean distance in RGB space
-  return Math.sqrt((a[0]-b[0])**2 + (a[1]-b[1])**2 + (a[2]-b[2])**2);
-}
-// RGB <-> HSV helpers
-function rgbToHsv(r,g,b){
-  r/=255;g/=255;b/=255;
-  const mx = Math.max(r,g,b), mn = Math.min(r,g,b);
-  const d = mx - mn;
-  let h = 0;
-  if(d!==0){
-    if(mx===r) h = ((g-b)/d)%6;
-    else if(mx===g) h = (b-r)/d + 2;
-    else h = (r-g)/d + 4;
-    h *= 60;
-    if(h<0) h+=360;
-  }
-  const s = mx===0?0:d/mx;
-  const v = mx;
-  return [h,s,v];
-}
-function hsvToRgb(h,s,v){
-  let c = v*s;
-  let x = c*(1 - Math.abs((h/60)%2 -1));
-  let m = v - c;
-  let r1,g1,b1;
-  if(h<60){ r1=c;g1=x;b1=0; }
-  else if(h<120){ r1=x;g1=c;b1=0; }
-  else if(h<180){ r1=0;g1=c;b1=x; }
-  else if(h<240){ r1=0;g1=x;b1=c; }
-  else if(h<300){ r1=x;g1=0;b1=c; }
-  else { r1=c;g1=0;b1=x; }
-  return [Math.round((r1+m)*255), Math.round((g1+m)*255), Math.round((b1+m)*255)];
-}
-
-// --- DOM ---
-const fileInput = document.getElementById('fileInput');
-const startBtn = document.getElementById('startBtn');
-const nextBtn  = document.getElementById('nextBtn');
-const restartBtn = document.getElementById('restartBtn');
-const canvas = document.getElementById('imgCanvas');
-const ctx = canvas.getContext('2d',{willReadFrequently:true});
-const paletteDiv = document.getElementById('palette');
-const roundsDiv = document.getElementById('rounds');
-const remainingSpan = document.getElementById('remaining');
-const timeLeftSpan = document.getElementById('timeLeft');
-const currentScoreSpan = document.getElementById('currentScore');
-const totalScoreSpan = document.getElementById('totalScore');
-const resultBox = document.getElementById('resultBox');
-const marker = document.getElementById('marker');
-const roundCountSel = document.getElementById('roundCount');
-const showHintCheck = document.getElementById('showHint');
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+const fileInput = document.getElementById("fileInput");
+const startBtn = document.getElementById("startBtn");
+const statusEl = document.getElementById("status");
+const paletteEl = document.getElementById("palette");
 
 let img = new Image();
-let imgLoaded = false;
-let state = 'idle'; // idle | playing | between
-let rounds = 5;
-let currentRound = 0;
-let totalScore = 0;
-let perRoundResults = [];
-let currentAnswer = null;
+let colors = [];
+let correctColor = null;
+let score = 0;
+let round = 0;
+let maxRounds = 5;
 let startTime = 0;
-let timerInterval = null;
-const sampleSize = 20; // 正解色を取るピクセル範囲（20x20）
-const paletteCount = 6; // 選択肢数（1つ正解＋5つ不正解）
-const maxTime = 10; // 何秒で時間スコアが0になるか
-const colorWeight = 0.8; // 色の正確さの重み（80%）
-const timeWeight = 0.2; // 速さの重み（20%）
 
-// --- 基本フロー ---
-fileInput.addEventListener('change', async (e)=>{
-  const f = e.target.files[0];
-  if(!f) return;
-  const url = URL.createObjectURL(f);
-  img.onload = ()=>{
-    imgLoaded = true;
-    drawImageToCanvas();
-    startBtn.disabled = false;
-    restartBtn.disabled = true;
+// 画像読み込み
+fileInput.addEventListener("change", (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (event) => {
+    img.onload = () => {
+      canvas.width = img.width;
+      canvas.height = img.height;
+      ctx.drawImage(img, 0, 0);
+    };
+    img.src = event.target.result;
   };
-  img.src = url;
+  reader.readAsDataURL(file);
 });
 
-startBtn.addEventListener('click', ()=>{
-  if(!imgLoaded) return;
-  rounds = parseInt(roundCountSel.value,10) || 5;
-  startGame();
-});
-
-nextBtn.addEventListener('click', ()=>{ // 次の問題へ（ユーザーが間違って押すこともある）
-  if(state !== 'between') return;
-  nextRound();
-});
-
-restartBtn.addEventListener('click', resetGame);
-
-canvas.addEventListener('click', ()=>{
-  // クリックで拡大（単純に開く新タブで画像）
-  if(!imgLoaded) return;
-  const w = img.naturalWidth, h = img.naturalHeight;
-  // Open in new tab as dataURL
-  const win = window.open('');
-  win.document.write('<img src="'+img.src+'" style="max-width:100%"/>');
-});
-
-// 描画補助
-function drawImageToCanvas(){
-  // Canvasに画像をフィットさせる（アスペクト維持）
-  const maxW = canvas.width, maxH = canvas.height;
-  const iw = img.naturalWidth, ih = img.naturalHeight;
-  let dw = maxW, dh = maxH;
-  const ratio = Math.min(maxW/iw, maxH/ih);
-  dw = Math.round(iw * ratio);
-  dh = Math.round(ih * ratio);
-  canvas.width = dw; canvas.height = dh;
-  ctx.clearRect(0,0,canvas.width,canvas.height);
-  ctx.drawImage(img, 0, 0, dw, dh);
-}
-
-// ゲーム開始
-function startGame(){
-  perRoundResults = [];
-  currentRound = 0;
-  totalScore = 0;
-  totalScoreSpan.textContent = '0';
-  currentScoreSpan.textContent = '0';
-  resultBox.style.display = 'none';
-  startBtn.disabled = true;
-  restartBtn.disabled = false;
-  nextBtn.disabled = true;
-  state = 'playing';
-  setupRoundsIndicator(rounds);
-  nextRound();
-}
-
-// ラウンドインジケータ
-function setupRoundsIndicator(n){
-  roundsDiv.innerHTML = '';
-  for(let i=0;i<n;i++){
-    const d = document.createElement('div');
-    d.className = 'roundDot';
-    d.textContent = i+1;
-    roundsDiv.appendChild(d);
-  }
-}
-
-// 次のラウンドを準備
-function nextRound(){
-  stopTimer();
-  if(currentRound >= rounds){
-    // 終了
-    finishGame();
+// ゲームスタート
+startBtn.addEventListener("click", () => {
+  if (!img.src) {
+    alert("先に画像をアップロードしてください！");
     return;
   }
-  // 更新
-  currentRound++;
-  updateRoundUI();
-  // 選ぶ位置を決定
-  const pos = pickRandomSafePosition();
-  // compute average color from surrounding sampleSize
-  const avg = sampleAverageColorAt(pos.x, pos.y);
-  // create palette
-  const palette = createPalette(avg, paletteCount);
-  currentAnswer = {
-    pos, avg, palette
-  };
-  // show hint (一瞬)
-  const showHint = showHintCheck.checked;
-  if(showHint){
-    showMarkerAt(pos.x, pos.y, 1000); // 1秒
-    setTimeout(()=>{ renderHiddenState(); }, 1100);
+  score = 0;
+  round = 0;
+  nextRound();
+});
+
+// ラウンド処理
+function nextRound() {
+  round++;
+  if (round > maxRounds) {
+    statusEl.textContent = `ゲーム終了！合計スコア: ${score}`;
+    paletteEl.innerHTML = "";
+    return;
+  }
+
+  ctx.drawImage(img, 0, 0);
+  statusEl.textContent = `ラウンド ${round} / ${maxRounds}　スコア: ${score}`;
+
+  // ランダム座標を選ぶ
+  const x = Math.floor(Math.random() * canvas.width);
+  const y = Math.floor(Math.random() * canvas.height);
+
+  const pixel = ctx.getImageData(x, y, 1, 1).data;
+  correctColor = `rgb(${pixel[0]},${pixel[1]},${pixel[2]})`;
+
+  // ターゲット表示
+  ctx.strokeStyle = "red";
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.arc(x, y, 10, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // 選択肢生成
+  colors = generateColors(correctColor);
+  renderPalette(colors);
+  startTime = Date.now();
+}
+
+// パレット生成
+function renderPalette(colorList) {
+  paletteEl.innerHTML = "";
+  colorList.forEach(c => {
+    const div = document.createElement("div");
+    div.className = "colorBox";
+    div.style.background = c;
+    div.onclick = () => checkAnswer(c);
+    paletteEl.appendChild(div);
+  });
+}
+
+// 回答処理
+function checkAnswer(color) {
+  const time = (Date.now() - startTime) / 1000;
+  const diff = colorDiff(color, correctColor);
+  const points = Math.max(0, 100 - diff * 2 - time * 10);
+  if (color === correctColor) {
+    score += 100 - time * 10;
+    statusEl.textContent = `正解！ +${Math.round(100 - time * 10)}点`;
   } else {
-    renderHiddenState();
+    score += points;
+    statusEl.textContent = `惜しい！ 色差:${diff.toFixed(1)} +${Math.round(points)}点`;
   }
-  // start timer after hidden render
-  startTime = performance.now();
-  startTimer();
-  state = 'playing';
-  renderPalette(palette);
-  remainingSpan.textContent = (rounds - currentRound + 1);
-  resultBox.style.display = 'none';
-  nextBtn.disabled = true;
+  setTimeout(nextRound, 1000);
 }
 
-// pick a random safe position within canvas (with margin)
-function pickRandomSafePosition(){
-  const margin = Math.max(30, Math.floor(sampleSize/2)+10);
-  const w = canvas.width, h = canvas.height;
-  const x = Math.floor(Math.random()*(w - margin*2)) + margin;
-  const y = Math.floor(Math.random()*(h - margin*2)) + margin;
-  return {x,y};
+// カラー差分計算
+function colorDiff(c1, c2) {
+  const rgb1 = c1.match(/\d+/g).map(Number);
+  const rgb2 = c2.match(/\d+/g).map(Number);
+  return Math.sqrt(
+    (rgb1[0] - rgb2[0]) ** 2 +
+    (rgb1[1] - rgb2[1]) ** 2 +
+    (rgb1[2] - rgb2[2]) ** 2
+  );
 }
 
-// sample average color around x,y (sampleSize x sampleSize)
-function sampleAverageColorAt(x,y){
-  const half = Math.floor(sampleSize/2);
-  const sx = clamp(x - half, 0, canvas.width-1);
-  const sy = clamp(y - half, 0, canvas.height-1);
-  const sw = Math.min(sampleSize, canvas.width - sx);
-  const sh = Math.min(sampleSize, canvas.height - sy);
-  const imgd = ctx.getImageData(sx,sy,sw,sh).data;
-  let r=0,g=0,b=0,cnt=0;
-  for(let i=0;i<imgd.length;i+=4){
-    r += imgd[i]; g += imgd[i+1]; b += imgd[i+2];
-    cnt++;
+// 選択肢カラー生成
+function generateColors(correct) {
+  const base = correct.match(/\d+/g).map(Number);
+  const list = [correct];
+  while (list.length < 5) {
+    const variation = base.map(v =>
+      Math.min(255, Math.max(0, v + (Math.random() * 80 - 40)))
+    );
+    list.push(`rgb(${variation[0]},${variation[1]},${variation[2]})`);
   }
-  return [Math.round(r/cnt), Math.round(g/cnt), Math.round(b/cnt)];
+  return shuffle(list);
 }
 
-// create palette: include correct color and distractors by shifting HSV
-function createPalette(correctRgb, n){
-  const [h,s,v] = rgbToHsv(...correctRgb);
-  const arr = [];
-  // push correct
-  arr.push({rgb:correctRgb, correct:true});
-  // create distractors by random HSV offsets
-  for(let i=1;i<n;i++){
-    let dh = (Math.random()*80 - 40); // -40..40
-    let ds = (Math.random()*0.6 - 0.3); // -0.3..0.3
-    let dv = (Math.random()*0.6 - 0.3);
-    let nh = (h + dh + 360) % 360;
-    let ns = clamp(s + ds, 0.05, 1);
-    let nv = clamp(v + dv, 0.05, 1);
-    const nrgb = hsvToRgb(nh, ns, nv);
-    arr.push({rgb:nrgb, correct:false});
-  }
-  // shuffle
-  for(let i=arr.length-1;i>0;i--){
-    const j = Math.floor(Math.random()*(i+1));
-    [arr[i],arr[j]]=[arr[j],arr[i]];
+// シャッフル関数
+function shuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
   }
   return arr;
 }
-
-// render canvas in "hidden state" (no marker)
-function renderHiddenState(){
-  drawImageToCanvas();
-  marker.style.display='none';
-}
-
-// show marker at canvas coordinate (absolute on canvas)
-function showMarkerAt(x,y,duration=800){
-  const rect = canvas.getBoundingClientRect();
-  // position marker relative to canvas top-left (we use absolute parent)
-  marker.style.left = (x - marker.offsetWidth/2) + 'px';
-  marker.style.top  = (y - marker.offsetHeight/2) + 'px';
-  marker.style.display = 'block';
-  marker.style.borderColor = 'rgba(255,255,255,0.8)';
-  if(duration>0){
-    setTimeout(()=>{ marker.style.display='none'; }, duration);
-  }
-}
-
-// render palette UI
-function renderPalette(palette){
-  paletteDiv.innerHTML = '';
-  palette.forEach((p, idx)=>{
-    const sw = document.createElement('div');
-    sw.className = 'swatch';
-    const hex = rgbToHex(...p.rgb);
-    sw.style.background = hex;
-    sw.title = hex;
-    sw.dataset.index = idx;
-    sw.addEventListener('click', ()=> onSwatchSelect(p, hex));
-    paletteDiv.appendChild(sw);
-  });
-  // also add a manual color picker for上級者
-  const colorPicker = document.createElement('input');
-  colorPicker.type='color';
-  colorPicker.title='カスタムで色を選ぶ（応用用）';
-  colorPicker.style.width='44px';
-  colorPicker.style.height='40px';
-  colorPicker.style.borderRadius='6px';
-  colorPicker.addEventListener('input', (e)=>{
-    const hex = e.target.value; const rgb = hexToRgb(hex);
-    onSwatchSelect({rgb, correct: false}, hex, true);
-  });
-  paletteDiv.appendChild(colorPicker);
-}
-
-// when user selects a swatch
-function onSwatchSelect(entry, hex, fromPicker=false){
-  if(state!=='playing') return;
-  const elapsed = (performance.now() - startTime) / 1000;
-  stopTimer();
-  // compute color distance
-  const correctRgb = currentAnswer.avg;
-  const pickedRgb = entry.rgb;
-  const dist = rgbDist(correctRgb, pickedRgb); // 0..~441
-  const maxDist = Math.sqrt(255*255*3);
-  // colorScore 0..100 (higher is better)
-  const colorScore = Math.max(0, 100 - (dist / maxDist) * 100);
-  // timeScore 0..100 (faster is better)
-  const timeRaw = clamp(1 - (elapsed / maxTime), 0, 1);
-  const timeScore = timeRaw * 100;
-  const roundScore = Math.round(colorWeight*colorScore + timeWeight*timeScore);
-  totalScore += roundScore;
-  perRoundResults.push({
-    round: currentRound, elapsed, dist, colorScore: Math.round(colorScore), timeScore: Math.round(timeScore), roundScore
-  });
-  // show result summary
-  showRoundResult(entry, hex, roundScore);
-  // update UI
-  totalScoreSpan.textContent = totalScore;
-  currentScoreSpan.textContent = roundScore;
-  state = 'between';
-  nextBtn.disabled = false;
-  if(currentRound >= rounds){
-    nextBtn.textContent = '結果を見る';
-  } else {
-    nextBtn.textContent = '次の問題へ';
-  }
-  restartBtn.disabled = false;
-}
-
-// show result: reveal correct color and stats
-function showRoundResult(entry, hex, roundScore){
-  // reveal region marker and show correct swatch
-  drawImageToCanvas();
-  showMarkerAt(currentAnswer.pos.x, currentAnswer.pos.y, 0);
-  // result box
-  resultBox.style.display = 'block';
-  const correctHex = rgbToHex(...currentAnswer.avg);
-  let html = `<div style="display:flex;gap:10px;align-items:center">
-                <div style="width:44px;height:44px;border-radius:6px;background:${correctHex};border:2px solid #fff8"></div>
-                <div>
-                  <div>正解色: <strong>${correctHex}</strong></div>
-                  <div>あなた: <strong>${hex}</strong></div>
-                </div>
-              </div>`;
-  const last = perRoundResults[perRoundResults.length-1];
-  html += `<div style="margin-top:8px">
-             <div class="small">色差スコア：${last.colorScore} / 100</div>
-             <div class="small">速さスコア：${last.timeScore} / 100（${last.elapsed.toFixed(2)} 秒）</div>
-             <div style="margin-top:6px;font-weight:700">このラウンドの得点： ${last.roundScore}</div>
-           </div>`;
-  resultBox.innerHTML = html;
-}
-
-// timer
-function startTimer(){
-  clearInterval(timerInterval);
-  timerInterval = setInterval(()=>{
-    const elapsed = (performance.now() - startTime)/1000;
-    const left = Math.max(0, (maxTime - elapsed)).toFixed(1);
-    timeLeftSpan.textContent = left;
-    if(elapsed >= maxTime){
-      // auto-submit with no selection (score 0 for time)
-      stopTimer();
-      // automatically choose "closest" in palette to give some partial credit? or zero?
-      // Here we'll compute best color-only match but time score=0
-      autoResolveOnTimeout();
-    }
-  },100);
-}
-function stopTimer(){ if(timerInterval) clearInterval(timerInterval); timerInterval=null; }
-
-// auto-resolve if time runs out
-function autoResolveOnTimeout(){
-  if(state!=='playing') return;
-  // choose palette entry with smallest color distance
-  let best = null, bestDist = Infinity;
-  currentAnswer.palette.forEach(p=>{
-    const d = rgbDist(p.rgb, currentAnswer.avg);
-    if(d < bestDist){ bestDist=d; best=p; }
-  });
-  // simulate selection but with elapsed=maxTime (so time score=0)
-  const elapsed = maxTime;
-  const dist = bestDist;
-  const maxDist = Math.sqrt(255*255*3);
-  const colorScore = Math.max(0, 100 - (dist / maxDist) * 100);
-  const timeScore = 0;
-  const roundScore = Math.round(colorWeight*colorScore + timeWeight*timeScore);
-  totalScore += roundScore;
-  perRoundResults.push({
-    round: currentRound, elapsed, dist, colorScore: Math.round(colorScore), timeScore: 0, roundScore
-  });
-  // show result
-  showRoundResult(best, rgbToHex(...best.rgb), roundScore);
-  state='between';
-  nextBtn.disabled = false;
-  restartBtn.disabled = false;
-}
-
-// finish game
-function finishGame(){
-  state='done';
-  startBtn.disabled = false;
-  nextBtn.disabled = true;
-  stopTimer();
-  // show summary
-  let summary = `<div style="font-weight:700;margin-bottom:6px">全 ${rounds} ラウンド終了 — 合計 ${totalScore} 点</div>`;
-  summary += '<div class="small" style="margin-top:6px">';
-  perRoundResults.forEach(r=>{
-    summary += `R${r.round}: 得点 ${r.roundScore}（色 ${r.colorScore} / 速さ ${r.timeScore} / 時間 ${r.elapsed.toFixed(2)}s）<br>`;
-  });
-  summary += '</div>';
-  resultBox.style.display = 'block';
-  resultBox.innerHTML = summary;
-  remainingSpan.textContent = 0;
-  timeLeftSpan.textContent = '--';
-}
-
-// reset
-function resetGame(){
-  stopTimer();
-  state='idle';
-  currentRound=0;
-  totalScore=0;
-  perRoundResults=[];
-  currentAnswer=null;
-  paletteDiv.innerHTML='';
-  roundsDiv.innerHTML='';
-  resultBox.style.display = 'none';
-  currentScoreSpan.textContent = '0';
-  totalScoreSpan.textContent = '0';
-  startBtn.disabled = !imgLoaded;
-  nextBtn.disabled = true;
-  restartBtn.disabled = true;
-  drawImageToCanvas();
-}
-
-// init canvas if image already loaded (none)
-drawImageToCanvas();
-
 </script>
+
 </body>
 </html>
