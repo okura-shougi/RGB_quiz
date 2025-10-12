@@ -2,78 +2,103 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>色当てクイズ</title>
+<title>RGB色当てクイズ</title>
 <style>
   body {
     font-family: sans-serif;
-    background: #f7f7f7;
+    background: #f5f5f5;
     text-align: center;
     margin: 20px;
   }
   canvas {
     border: 2px solid #ccc;
     margin-top: 10px;
-    cursor: crosshair;
     border-radius: 8px;
+    cursor: crosshair;
   }
-  #palette {
+  #controls {
     margin-top: 20px;
+  }
+  .slider-group {
     display: flex;
+    align-items: center;
     justify-content: center;
     gap: 10px;
+    margin-bottom: 8px;
   }
-  .colorBox {
-    width: 60px;
-    height: 60px;
+  label {
+    width: 20px;
+  }
+  input[type="range"] {
+    width: 200px;
+  }
+  #preview {
+    width: 80px;
+    height: 80px;
     border-radius: 8px;
-    border: 2px solid #999;
-    cursor: pointer;
-    transition: transform 0.1s ease;
+    border: 2px solid #555;
+    margin: 10px auto;
   }
-  .colorBox:hover {
-    transform: scale(1.1);
+  button {
+    margin: 10px;
+    padding: 10px 20px;
+    border: none;
+    background: #2196f3;
+    color: white;
+    border-radius: 6px;
+    cursor: pointer;
   }
   #status {
     margin-top: 10px;
     font-size: 18px;
   }
-  button {
-    margin: 10px;
-    padding: 10px 20px;
-    font-size: 16px;
-    cursor: pointer;
-    border-radius: 6px;
-    background: #2196f3;
-    color: white;
-    border: none;
-  }
-  #fileInput {
-    margin-top: 10px;
-  }
 </style>
 </head>
 <body>
 
-<h1>🎨 色当てクイズ 🎯</h1>
-<p>画像をアップロードして「スタート」！</p>
-<input type="file" id="fileInput" accept="image/*">
-<br>
-<canvas id="gameCanvas" width="400" height="300"></canvas>
-<br>
+<h1>🎯 RGB色当てクイズ</h1>
+<p>画像をアップロードして「スタート」！RGBバーで赤丸の中の色を再現しよう。</p>
+
+<input type="file" id="fileInput" accept="image/*"><br>
+<canvas id="gameCanvas" width="400" height="300"></canvas><br>
 <button id="startBtn">スタート</button>
 <div id="status"></div>
-<div id="palette"></div>
+
+<div id="controls">
+  <div class="slider-group">
+    <label>R</label><input type="range" id="rRange" min="0" max="255" value="128">
+    <span id="rVal">128</span>
+  </div>
+  <div class="slider-group">
+    <label>G</label><input type="range" id="gRange" min="0" max="255" value="128">
+    <span id="gVal">128</span>
+  </div>
+  <div class="slider-group">
+    <label>B</label><input type="range" id="bRange" min="0" max="255" value="128">
+    <span id="bVal">128</span>
+  </div>
+
+  <div id="preview"></div>
+  <button id="submitBtn">この色で回答！</button>
+</div>
 
 <script>
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 const fileInput = document.getElementById("fileInput");
 const startBtn = document.getElementById("startBtn");
+const submitBtn = document.getElementById("submitBtn");
 const statusEl = document.getElementById("status");
-const paletteEl = document.getElementById("palette");
+const preview = document.getElementById("preview");
+
+const rRange = document.getElementById("rRange");
+const gRange = document.getElementById("gRange");
+const bRange = document.getElementById("bRange");
+const rVal = document.getElementById("rVal");
+const gVal = document.getElementById("gVal");
+const bVal = document.getElementById("bVal");
 
 let img = new Image();
-let colors = [];
 let correctColor = null;
 let score = 0;
 let round = 0;
@@ -81,22 +106,35 @@ let maxRounds = 5;
 let startTime = 0;
 
 // 画像読み込み
-fileInput.addEventListener("change", (e) => {
+fileInput.addEventListener("change", e => {
   const file = e.target.files[0];
   if (!file) return;
   const reader = new FileReader();
-  reader.onload = (event) => {
+  reader.onload = ev => {
     img.onload = () => {
       canvas.width = img.width;
       canvas.height = img.height;
       ctx.drawImage(img, 0, 0);
     };
-    img.src = event.target.result;
+    img.src = ev.target.result;
   };
   reader.readAsDataURL(file);
 });
 
-// ゲームスタート
+// RGBスライダー更新
+function updatePreview() {
+  const r = rRange.value, g = gRange.value, b = bRange.value;
+  preview.style.background = `rgb(${r},${g},${b})`;
+  rVal.textContent = r;
+  gVal.textContent = g;
+  bVal.textContent = b;
+}
+[rRange, gRange, bRange].forEach(slider =>
+  slider.addEventListener("input", updatePreview)
+);
+updatePreview();
+
+// ゲーム開始
 startBtn.addEventListener("click", () => {
   if (!img.src) {
     alert("先に画像をアップロードしてください！");
@@ -107,66 +145,44 @@ startBtn.addEventListener("click", () => {
   nextRound();
 });
 
-// ラウンド処理
+// ラウンド進行
 function nextRound() {
   round++;
   if (round > maxRounds) {
-    statusEl.textContent = `ゲーム終了！合計スコア: ${score}`;
-    paletteEl.innerHTML = "";
+    statusEl.textContent = `ゲーム終了！合計スコア: ${Math.round(score)}`;
     return;
   }
 
   ctx.drawImage(img, 0, 0);
-  statusEl.textContent = `ラウンド ${round} / ${maxRounds}　スコア: ${score}`;
+  statusEl.textContent = `ラウンド ${round}/${maxRounds}　スコア: ${Math.round(score)}`;
 
-  // ランダム座標を選ぶ
   const x = Math.floor(Math.random() * canvas.width);
   const y = Math.floor(Math.random() * canvas.height);
-
   const pixel = ctx.getImageData(x, y, 1, 1).data;
   correctColor = `rgb(${pixel[0]},${pixel[1]},${pixel[2]})`;
 
-  // ターゲット表示
   ctx.strokeStyle = "red";
   ctx.lineWidth = 3;
   ctx.beginPath();
   ctx.arc(x, y, 10, 0, Math.PI * 2);
   ctx.stroke();
 
-  // 選択肢生成
-  colors = generateColors(correctColor);
-  renderPalette(colors);
   startTime = Date.now();
 }
 
-// パレット生成
-function renderPalette(colorList) {
-  paletteEl.innerHTML = "";
-  colorList.forEach(c => {
-    const div = document.createElement("div");
-    div.className = "colorBox";
-    div.style.background = c;
-    div.onclick = () => checkAnswer(c);
-    paletteEl.appendChild(div);
-  });
-}
-
-// 回答処理
-function checkAnswer(color) {
+// 回答チェック
+submitBtn.addEventListener("click", () => {
+  if (!correctColor) return;
   const time = (Date.now() - startTime) / 1000;
-  const diff = colorDiff(color, correctColor);
-  const points = Math.max(0, 100 - diff * 2 - time * 10);
-  if (color === correctColor) {
-    score += 100 - time * 10;
-    statusEl.textContent = `正解！ +${Math.round(100 - time * 10)}点`;
-  } else {
-    score += points;
-    statusEl.textContent = `惜しい！ 色差:${diff.toFixed(1)} +${Math.round(points)}点`;
-  }
+  const guess = `rgb(${rRange.value},${gRange.value},${bRange.value})`;
+  const diff = colorDiff(guess, correctColor);
+  const points = Math.max(0, 100 - diff * 0.8 - time * 10);
+  score += points;
+  statusEl.textContent = `色差: ${diff.toFixed(1)}　+${Math.round(points)}点 (${Math.round(score)}点累計)`;
   setTimeout(nextRound, 1000);
-}
+});
 
-// カラー差分計算
+// 色差計算
 function colorDiff(c1, c2) {
   const rgb1 = c1.match(/\d+/g).map(Number);
   const rgb2 = c2.match(/\d+/g).map(Number);
@@ -175,28 +191,6 @@ function colorDiff(c1, c2) {
     (rgb1[1] - rgb2[1]) ** 2 +
     (rgb1[2] - rgb2[2]) ** 2
   );
-}
-
-// 選択肢カラー生成
-function generateColors(correct) {
-  const base = correct.match(/\d+/g).map(Number);
-  const list = [correct];
-  while (list.length < 5) {
-    const variation = base.map(v =>
-      Math.min(255, Math.max(0, v + (Math.random() * 80 - 40)))
-    );
-    list.push(`rgb(${variation[0]},${variation[1]},${variation[2]})`);
-  }
-  return shuffle(list);
-}
-
-// シャッフル関数
-function shuffle(arr) {
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-  return arr;
 }
 </script>
 
