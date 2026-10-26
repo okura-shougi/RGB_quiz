@@ -21,7 +21,23 @@
   #fileInfo { flex-basis: 100%; margin: 0; overflow-wrap: anywhere; }
   .layout { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(280px, 1fr); gap: 18px; align-items: start; }
   .image-stage { position: relative; overflow: hidden; border: 1px solid #d3dbe7; border-radius: 10px; background: #eef1f6; }
-  #gameCanvas { display: block; width: 100%; height: auto; max-height: 65vh; object-fit: contain; }
+  #gameCanvas { display: block; width: min(100%, calc(65vh * var(--image-ratio, 1.6))); height: auto; margin-inline: auto; }
+  #gameCanvas.selectable, #pickerCanvas { cursor: crosshair; }
+  .modes { display: flex; gap: 8px; border: 0; padding: 0; margin: 0 0 18px; }
+  .modes legend { font-weight: 700; margin-bottom: 10px; }
+  .modes label { display: flex; gap: 8px; align-items: center; flex: 1; padding: 12px; border: 1px solid #c6d1e3; border-radius: 10px; background: #fff; cursor: pointer; }
+  .modes label:has(input:checked) { border-color: #275cce; background: #edf2fc; }
+  .picker { margin-top: 18px; }
+  .picker-tools { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 12px; }
+  select { padding: 8px; border: 1px solid #b8c3d3; border-radius: 7px; font: inherit; background: #fff; }
+  #pickerCanvas { display: block; width: min(100%, 280px); height: auto; border: 1px solid #aab8cd; border-radius: 8px; image-rendering: pixelated; }
+  .picker-detail { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; }
+  .nudge { display: grid; grid-template-columns: repeat(3, 42px); gap: 4px; border: 0; padding: 0; margin: 10px 0; }
+  .nudge button { padding: 10px 0; }
+  .nudge button:first-child { grid-column: 2; }
+  .nudge button:nth-child(2) { grid-column: 1; }
+  .find-mode .target-swatch { order: -1; }
+  .find-mode .target-swatch .swatch { height: 112px; }
   #emptyHint { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; padding: 20px; color: #596579; }
   .target-help { display: flex; gap: 16px; align-items: center; margin-top: 16px; }
   #zoomCanvas { width: 105px; height: 105px; flex: 0 0 auto; border: 1px solid #d3dbe7; border-radius: 8px; image-rendering: pixelated; }
@@ -55,7 +71,13 @@
 <body>
 <main>
   <h1>🎯 RGB色当てクイズ</h1>
-  <p class="intro">画像の中の1点を、赤・緑・青の組み合わせで再現しよう。全5問、じっくり考えてOK。</p>
+  <p class="intro" id="intro">画像の中の1点を、赤・緑・青の組み合わせで再現しよう。全5問、じっくり考えてOK。</p>
+  <fieldset class="modes">
+    <legend>遊び方を選ぶ</legend>
+    <label><input type="radio" name="mode" value="rgb" checked>RGBで色をつくる</label>
+    <label><input type="radio" name="mode" value="find">画像から色を探す</label>
+  </fieldset>
+  <p id="modeNotice" class="hint" style="margin-bottom:18px">モードを切り替えると、進行中のスコアはリセットされます。</p>
   <section class="card upload" aria-label="画像の選択">
     <label for="fileInput">1. 好きな画像を選ぶ</label>
     <input type="file" id="fileInput" accept="image/*" aria-describedby="fileInfo">
@@ -63,7 +85,7 @@
   </section>
   <div class="layout">
     <section class="card" aria-label="出題画像">
-      <h2>2. 丸の中心の色を観察</h2>
+      <h2 id="imageHeading">2. 丸の中心の色を観察</h2>
       <div class="image-stage">
         <canvas id="gameCanvas" width="720" height="450" role="img" aria-label="画像を選ぶと、ここに出題画像が表示されます"></canvas>
         <div id="emptyHint">写真やイラストを読み込んで<br>スタート！</div>
@@ -71,6 +93,26 @@
       <div id="targetHelp" class="target-help" hidden>
         <canvas id="zoomCanvas" width="105" height="105" role="img" aria-label="出題位置の拡大図。中央の枠の中が回答する1ピクセルです"></canvas>
         <p class="hint">左は出題位置の拡大図。<br>中央の枠の中の1ピクセルが対象です。<br>透明な部分は白背景に重ねた色で出題します。</p>
+      </div>
+      <div id="pickerPanel" class="picker" hidden>
+        <div class="picker-tools">
+          <strong>拡大鏡</strong>
+          <label for="zoomSize">表示範囲</label>
+          <select id="zoomSize"><option value="81">広め · 81px</option><option value="41" selected>標準 · 41px</option><option value="21">拡大 · 21px</option><option value="11">最大 · 11px</option></select>
+        </div>
+        <div class="picker-detail">
+          <canvas id="pickerCanvas" width="280" height="280" tabindex="0" role="img" aria-label="選択付近の拡大鏡。クリック・タップで選択、矢印キーで1ピクセルずつ調整できます" aria-describedby="pickerHint selectionInfo"></canvas>
+          <div>
+            <p id="selectionInfo" class="hint" role="status">画像をクリック・タップして候補を選択</p>
+            <fieldset id="nudgeControls" class="nudge" disabled aria-label="選択位置を1ピクセルずつ調整">
+              <button type="button" data-dx="0" data-dy="-1" aria-label="1ピクセル上">↑</button>
+              <button type="button" data-dx="-1" data-dy="0" aria-label="1ピクセル左">←</button>
+              <button type="button" data-dx="0" data-dy="1" aria-label="1ピクセル下">↓</button>
+              <button type="button" data-dx="1" data-dy="0" aria-label="1ピクセル右">→</button>
+            </fieldset>
+            <p id="pickerHint" class="hint">画像でおおよその位置を選び、<br>拡大鏡の中で細かく選び直せます。<br>矢印で1pxずつ調整できます。<br>回答ボタンを押すまで確定しません。</p>
+          </div>
+        </div>
       </div>
     </section>
     <section class="card" aria-labelledby="answerHeading">
@@ -83,8 +125,8 @@
         <div class="slider-group"><label for="bRange">B</label><input type="range" id="bRange" min="0" max="255" value="128" aria-label="青のスライダー"><input type="number" id="bNumber" min="0" max="255" step="1" value="128" aria-label="青の数値"></div>
       </fieldset>
       <div class="swatches">
-        <figure><div id="preview" class="swatch"></div><figcaption>あなたの色<span id="guessValue" class="rgb-value">RGB(128, 128, 128)</span></figcaption></figure>
-        <figure><div id="correctPreview" class="swatch"></div><figcaption>正解の色<span id="correctValue" class="rgb-value">回答後に表示</span></figcaption></figure>
+        <figure><div id="preview" class="swatch"></div><figcaption><span id="guessCaption">あなたの色</span><span id="guessValue" class="rgb-value">RGB(128, 128, 128)</span></figcaption></figure>
+        <figure class="target-swatch"><div id="correctPreview" class="swatch"></div><figcaption><span id="correctCaption">正解の色</span><span id="correctValue" class="rgb-value">回答後に表示</span></figcaption></figure>
       </div>
       <div id="feedback" aria-live="polite" hidden></div>
       <button id="startBtn" type="button" disabled>スタート</button>
@@ -93,7 +135,7 @@
       <button id="restartBtn" type="button" class="secondary" hidden>最初からやり直す</button>
     </section>
   </div>
-  <p class="hint rules">採点：RGBの距離が小さいほど高得点（各問0〜100点）。時間による減点はありません。スライダーのほか、0〜255の数値を直接入力できます。</p>
+  <p id="rules" class="hint rules">採点：RGBの距離が小さいほど高得点（各問0〜100点）。時間による減点はありません。スライダーのほか、0〜255の数値を直接入力できます。</p>
 </main>
 <script>
 'use strict';
@@ -101,6 +143,8 @@ const $ = id => document.getElementById(id);
 const canvas = $('gameCanvas');
 const ctx = canvas.getContext('2d');
 const zoom = $('zoomCanvas').getContext('2d');
+const picker = $('pickerCanvas');
+const pickerCtx = picker.getContext('2d');
 // 元画像の1ピクセルを抽出する専用キャンバス。位置マーカーは採色に混ざらない。
 const sampler = document.createElement('canvas');
 sampler.width = sampler.height = 1;
@@ -114,14 +158,27 @@ let round = 0;
 let score = 0;
 let correctColor = null;
 let target = null;
+let mode = 'rgb';
+let selected = null;
+let lensCenter = null;
+let lensView = null;
 
-function guessColor() { return channels.map(c => Number($(c + 'Range').value)); }
+function sampleColor(point) {
+  sampleCtx.fillStyle = '#fff';
+  sampleCtx.fillRect(0, 0, 1, 1);
+  sampleCtx.drawImage(image, point.x, point.y, 1, 1, 0, 0, 1, 1);
+  return Array.from(sampleCtx.getImageData(0, 0, 1, 1).data).slice(0, 3);
+}
+function guessColor() {
+  return mode === 'find' ? (selected ? sampleColor(selected) : null)
+    : channels.map(c => Number($(c + 'Range').value));
+}
 function rgb(color) { return `rgb(${color.join(', ')})`; }
 function colorLabel(color) { return `RGB(${color.join(', ')})`; }
 function updatePreview() {
   const color = guessColor();
-  $('preview').style.background = rgb(color);
-  $('guessValue').textContent = colorLabel(color);
+  $('preview').style.background = color ? rgb(color) : '#edf0f5';
+  $('guessValue').textContent = color ? (mode === 'find' && phase === 'guessing' ? 'この場所の色で回答' : colorLabel(color)) : '場所を選ぶと表示';
 }
 function setGuess(color) {
   channels.forEach((c, i) => { $(c + 'Range').value = $(c + 'Number').value = color[i]; });
@@ -144,11 +201,31 @@ function updateUI() {
   const guessing = phase === 'guessing';
   const revealed = phase === 'revealed';
   const finished = phase === 'finished';
-  $('rgbControls').disabled = !guessing;
+  const finding = mode === 'find';
+  document.body.classList.toggle('find-mode', finding);
+  canvas.classList.toggle('selectable', finding && guessing);
+  canvas.tabIndex = finding && guessing ? 0 : -1;
+  $('rgbControls').hidden = finding;
+  $('rgbControls').disabled = !guessing || finding;
+  $('pickerPanel').hidden = !finding || !(guessing || revealed || finished);
+  $('targetHelp').hidden = finding || !(guessing || revealed || finished);
+  $('nudgeControls').disabled = !finding || !guessing || !selected;
+  $('zoomSize').disabled = !guessing;
+  $('intro').textContent = finding
+    ? 'お題の色が画像のどこにあるか探そう。クリック・タップと拡大鏡で選んで回答。全5問、時間制限なし。'
+    : '画像の中の1点を、赤・緑・青の組み合わせで再現しよう。全5問、じっくり考えてOK。';
+  $('imageHeading').textContent = finding ? '2. お題と同じ色の場所を探す' : '2. 丸の中心の色を観察';
+  $('answerHeading').textContent = finding ? '3. お題の色と見比べて回答' : '3. RGBで色をつくる';
+  $('guessCaption').textContent = finding ? '選んだ場所の色' : 'あなたの色';
+  $('correctCaption').textContent = finding ? '探す色（お題）' : '正解の色';
+  $('rules').textContent = finding
+    ? '採点：お題と選んだ場所のRGBの距離が小さいほど高得点（各問0〜100点）。元の出題位置と違っても、同じ色なら100点！ 透明部分は白背景に重ねて判定します。'
+    : '採点：RGBの距離が小さいほど高得点（各問0〜100点）。時間による減点はありません。スライダーのほか、0〜255の数値を直接入力できます。';
   $('startBtn').hidden = guessing || revealed || finished;
   $('startBtn').disabled = phase !== 'ready';
   $('submitBtn').hidden = !guessing;
-  $('submitBtn').disabled = !guessing;
+  $('submitBtn').disabled = !guessing || (finding && !selected);
+  $('submitBtn').textContent = finding ? 'この場所で回答' : 'この色で回答';
   $('nextBtn').hidden = !revealed;
   $('nextBtn').textContent = round === maxRounds ? '結果を見る' : '次の問題へ';
   $('restartBtn').hidden = !(guessing || revealed || finished);
@@ -161,21 +238,27 @@ function clearAnswer() {
   $('correctPreview').style.removeProperty('background');
   $('correctValue').textContent = '回答後に表示';
   correctColor = null;
+  selected = lensCenter = lensView = null;
+  $('selectionInfo').textContent = '画像をクリック・タップして候補を選択';
 }
 function drawImage() {
   ctx.fillStyle = '#fff';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
 }
-function drawTarget() {
-  drawImage();
-  const x = (target.x + .5) * canvas.width / image.naturalWidth;
-  const y = (target.y + .5) * canvas.height / image.naturalHeight;
+function drawMarker(point, color = '#111') {
+  const x = (point.x + .5) * canvas.width / image.naturalWidth;
+  const y = (point.y + .5) * canvas.height / image.naturalHeight;
+  const radius = Math.min(12, canvas.width / 5, canvas.height / 5);
   // 白黒二重リングなので、明るい画像でも暗い画像でも見つけやすい。
   ctx.beginPath();
-  ctx.arc(x, y, 12, 0, Math.PI * 2);
+  ctx.arc(x, y, radius, 0, Math.PI * 2);
   ctx.strokeStyle = '#fff'; ctx.lineWidth = 5; ctx.stroke();
-  ctx.strokeStyle = '#111'; ctx.lineWidth = 2; ctx.stroke();
+  ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.stroke();
+}
+function drawTarget() {
+  drawImage();
+  drawMarker(target);
   canvas.setAttribute('aria-label', `第${round}問の画像。白黒の丸の中心の色を再現してください`);
   const scale = 7;
   zoom.fillStyle = '#fff';
@@ -190,6 +273,113 @@ function drawTarget() {
   zoom.strokeRect(49, 49, scale, scale);
   $('targetHelp').hidden = false;
 }
+function drawFindImage() {
+  drawImage();
+  // お題の位置は回答前には一切描画しない。
+  if (phase === 'revealed' || phase === 'finished') drawMarker(target, '#df7900');
+  if (selected) drawMarker(selected, '#275cce');
+  canvas.setAttribute('aria-label', 'お題と同じ色の場所を選ぶ画像。選択後は矢印キーで位置を調整できます');
+}
+function clampPoint(point) {
+  return { x: Math.max(0, Math.min(image.naturalWidth - 1, Math.floor(point.x))),
+    y: Math.max(0, Math.min(image.naturalHeight - 1, Math.floor(point.y))) };
+}
+function drawLens() {
+  if (!image || !lensCenter) return;
+  const span = Number($('zoomSize').value);
+  const half = Math.floor(span / 2);
+  lensView = { x: lensCenter.x - half, y: lensCenter.y - half, span };
+  const scale = picker.width / span;
+  pickerCtx.fillStyle = '#dfe5ef';
+  pickerCtx.fillRect(0, 0, picker.width, picker.height);
+  // 画像外は灰色で区別する。読み出すのは拡大範囲だけ。
+  const sx = Math.max(0, lensView.x), sy = Math.max(0, lensView.y);
+  const ex = Math.min(image.naturalWidth, lensView.x + span);
+  const ey = Math.min(image.naturalHeight, lensView.y + span);
+  const dx = (sx - lensView.x) * scale, dy = (sy - lensView.y) * scale;
+  pickerCtx.fillStyle = '#fff';
+  pickerCtx.fillRect(dx, dy, (ex - sx) * scale, (ey - sy) * scale);
+  pickerCtx.imageSmoothingEnabled = false;
+  pickerCtx.drawImage(image, sx, sy, ex - sx, ey - sy,
+    dx, dy, (ex - sx) * scale, (ey - sy) * scale);
+  const focus = selected || lensCenter;
+  const fx = (focus.x - lensView.x) * scale, fy = (focus.y - lensView.y) * scale;
+  pickerCtx.strokeStyle = '#fff'; pickerCtx.lineWidth = 3;
+  pickerCtx.strokeRect(fx, fy, scale, scale);
+  pickerCtx.strokeStyle = '#111'; pickerCtx.lineWidth = 1;
+  pickerCtx.strokeRect(fx, fy, scale, scale);
+}
+function selectPoint(point, recenter = true) {
+  if (mode !== 'find' || phase !== 'guessing') return;
+  selected = clampPoint(point);
+  if (recenter || !lensCenter) lensCenter = { ...selected };
+  $('selectionInfo').textContent = `選択位置：X ${selected.x + 1} / Y ${selected.y + 1}（1px単位）`;
+  updatePreview();
+  drawFindImage();
+  drawLens();
+  updateUI();
+}
+// CSSで縮小された表示位置を、元画像の座標に戻す。
+function pointOnCanvas(event, surface, width, height) {
+  const rect = surface.getBoundingClientRect();
+  // 拡大鏡の1px枠線は採色領域に含めない。
+  const left = rect.left + surface.clientLeft;
+  const top = rect.top + surface.clientTop;
+  return { x: Math.floor((event.clientX - left) / (rect.width - 2 * surface.clientLeft) * width),
+    y: Math.floor((event.clientY - top) / (rect.height - 2 * surface.clientTop) * height) };
+}
+canvas.addEventListener('click', event => {
+  if (mode !== 'find' || phase !== 'guessing') return;
+  selectPoint(pointOnCanvas(event, canvas, image.naturalWidth, image.naturalHeight));
+});
+canvas.addEventListener('pointermove', event => {
+  if (mode !== 'find' || phase !== 'guessing' || selected || event.pointerType === 'touch') return;
+  lensCenter = clampPoint(pointOnCanvas(event, canvas, image.naturalWidth, image.naturalHeight));
+  drawLens();
+});
+picker.addEventListener('click', event => {
+  if (mode !== 'find' || phase !== 'guessing' || !lensView) return;
+  const point = pointOnCanvas(event, picker, lensView.span, lensView.span);
+  const original = { x: lensView.x + point.x, y: lensView.y + point.y };
+  if (original.x < 0 || original.y < 0 || original.x >= image.naturalWidth || original.y >= image.naturalHeight) return;
+  selectPoint(original, false);
+});
+$('zoomSize').addEventListener('change', () => {
+  if (mode !== 'find' || phase !== 'guessing') return;
+  if (selected) lensCenter = { ...selected };
+  drawLens();
+});
+function nudge(dx, dy, step = 1) {
+  if (mode !== 'find' || phase !== 'guessing' || !image) return;
+  const base = selected || lensCenter || { x: Math.floor(image.naturalWidth / 2), y: Math.floor(image.naturalHeight / 2) };
+  selectPoint({ x: base.x + dx * step, y: base.y + dy * step });
+}
+document.querySelectorAll('[data-dx]').forEach(button => {
+  button.addEventListener('click', () => nudge(Number(button.dataset.dx), Number(button.dataset.dy)));
+});
+function handleArrow(event) {
+  const directions = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
+  if (mode !== 'find' || phase !== 'guessing' || !directions[event.key]) return;
+  event.preventDefault();
+  nudge(...directions[event.key], event.shiftKey ? 10 : 1);
+}
+canvas.addEventListener('keydown', handleArrow);
+picker.addEventListener('keydown', handleArrow);
+document.querySelectorAll('input[name="mode"]').forEach(input => {
+  input.addEventListener('change', () => {
+    if (!input.checked || mode === input.value) return;
+    mode = input.value;
+    round = score = 0;
+    target = null;
+    clearAnswer();
+    if (phase !== 'loading') phase = image ? 'ready' : 'empty';
+    if (image) drawImage();
+    setGuess([128, 128, 128]);
+    $('status').textContent = phase === 'loading' ? '画像を読み込んでいます。'
+      : image ? '準備OK！ スタートで選んだモードを始めよう。' : '画像を選ぶとスタートできます。';
+    updateUI();
+  });
+});
 function nextRound() {
   round++;
   clearAnswer();
@@ -198,13 +388,21 @@ function nextRound() {
     x: Math.floor(Math.random() * image.naturalWidth),
     y: Math.floor(Math.random() * image.naturalHeight)
   };
-  sampleCtx.fillStyle = '#fff';
-  sampleCtx.fillRect(0, 0, 1, 1);
-  sampleCtx.drawImage(image, target.x, target.y, 1, 1, 0, 0, 1, 1);
-  correctColor = Array.from(sampleCtx.getImageData(0, 0, 1, 1).data).slice(0, 3);
-  drawTarget();
+  correctColor = sampleColor(target);
   phase = 'guessing';
-  $('status').textContent = '丸の中心の色を、RGBで再現してみよう。';
+  if (mode === 'find') {
+    // 出題位置と無関係な中心から開始し、答えの場所を漏らさない。
+    lensCenter = { x: Math.floor(image.naturalWidth / 2), y: Math.floor(image.naturalHeight / 2) };
+    drawFindImage();
+    drawLens();
+    $('correctPreview').style.background = rgb(correctColor);
+    $('correctValue').textContent = '画像の中に必ずある色です';
+    $('status').textContent = 'お題の色に近い場所を選び、拡大鏡で調整して回答しよう。';
+  } else {
+    drawTarget();
+    $('status').textContent = '丸の中心の色を、RGBで再現してみよう。';
+  }
+  updatePreview();
   updateUI();
 }
 function startGame() {
@@ -216,9 +414,9 @@ $('startBtn').addEventListener('click', startGame);
 $('restartBtn').addEventListener('click', startGame);
 $('submitBtn').addEventListener('click', () => {
   // 回答済みの問題には再加点しない。自動遷移タイマーも使わない。
-  if (phase !== 'guessing') return;
-  phase = 'revealed';
+  if (phase !== 'guessing' || (mode === 'find' && !selected)) return;
   const guess = guessColor();
+  phase = 'revealed';
   const distance = Math.hypot(...guess.map((value, i) => value - correctColor[i]));
   const points = Math.round(100 * (1 - distance / Math.hypot(255, 255, 255)));
   score += points;
@@ -226,7 +424,13 @@ $('submitBtn').addEventListener('click', () => {
   $('correctValue').textContent = colorLabel(correctColor);
   $('feedback').textContent = `${points}点！ 各成分の差：R ${Math.abs(guess[0] - correctColor[0])} / G ${Math.abs(guess[1] - correctColor[1])} / B ${Math.abs(guess[2] - correctColor[2])}`;
   $('feedback').hidden = false;
-  $('status').textContent = 'あなたの色と正解の色を見比べてみよう。';
+  if (mode === 'find') {
+    drawFindImage();
+    $('status').textContent = '青い丸が選択位置、オレンジの丸が出題元の一例。同じ色なら場所が違っても満点！';
+  } else {
+    $('status').textContent = 'あなたの色と正解の色を見比べてみよう。';
+  }
+  updatePreview();
   updateUI();
   $('nextBtn').focus({ preventScroll: true });
 });
@@ -234,7 +438,7 @@ $('nextBtn').addEventListener('click', () => {
   if (phase !== 'revealed') return;
   if (round < maxRounds) {
     nextRound();
-    $('rRange').focus({ preventScroll: true });
+    (mode === 'find' ? canvas : $('rRange')).focus({ preventScroll: true });
   } else {
     phase = 'finished';
     $('status').textContent = `全${maxRounds}問終了！ 合計${score}点 / ${maxRounds * 100}点（平均${(score / maxRounds).toFixed(1)}点）`;
@@ -274,6 +478,8 @@ $('fileInput').addEventListener('change', async event => {
     const scale = Math.min(1, 1200 / Math.max(image.naturalWidth, image.naturalHeight));
     canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
     canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+    // 実際のキャンバス自体を収め、余白をクリック座標に混ぜない。
+    canvas.style.setProperty('--image-ratio', canvas.width / canvas.height);
     drawImage();
     canvas.setAttribute('aria-label', '読み込んだ画像。スタートでランダムな位置を出題します');
     $('emptyHint').hidden = true;
