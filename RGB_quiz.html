@@ -2,197 +2,299 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>RGB色当てクイズ</title>
 <style>
-  body {
-    font-family: sans-serif;
-    background: #f5f5f5;
-    text-align: center;
-    margin: 20px;
-  }
-  canvas {
-    border: 2px solid #ccc;
-    margin-top: 10px;
-    border-radius: 8px;
-    cursor: crosshair;
-  }
-  #controls {
-    margin-top: 20px;
-  }
-  .slider-group {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
-    margin-bottom: 8px;
-  }
-  label {
-    width: 20px;
-  }
-  input[type="range"] {
-    width: 200px;
-  }
-  #preview {
-    width: 80px;
-    height: 80px;
-    border-radius: 8px;
-    border: 2px solid #555;
-    margin: 10px auto;
-  }
-  button {
-    margin: 10px;
-    padding: 10px 20px;
-    border: none;
-    background: #2196f3;
-    color: white;
-    border-radius: 6px;
-    cursor: pointer;
-  }
-  #status {
-    margin-top: 10px;
-    font-size: 18px;
-  }
+  :root { color-scheme: light; font-family: system-ui, sans-serif; color: #233044; background: #f2f4f8; }
+  * { box-sizing: border-box; }
+  body { margin: 0; }
+  main { max-width: 1120px; margin: auto; padding: 28px 20px 48px; }
+  h1 { margin: 0 0 8px; font-size: clamp(25px, 4vw, 36px); letter-spacing: -.04em; }
+  h2 { margin: 0 0 18px; font-size: 19px; }
+  p { line-height: 1.7; }
+  .intro, .hint { color: #596579; }
+  .intro { margin: 0 0 24px; }
+  .card { background: #fff; border: 1px solid #dde3ed; border-radius: 18px; padding: 22px; }
+  .upload { display: flex; align-items: center; flex-wrap: wrap; gap: 12px 20px; margin-bottom: 18px; }
+  .upload label { font-weight: 700; }
+  input[type="file"] { max-width: 100%; font: inherit; font-size: 14px; }
+  #fileInfo { flex-basis: 100%; margin: 0; overflow-wrap: anywhere; }
+  .layout { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(280px, 1fr); gap: 18px; align-items: start; }
+  .image-stage { position: relative; overflow: hidden; border: 1px solid #d3dbe7; border-radius: 10px; background: #eef1f6; }
+  #gameCanvas { display: block; width: 100%; height: auto; max-height: 65vh; object-fit: contain; }
+  #emptyHint { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; padding: 20px; color: #596579; }
+  .target-help { display: flex; gap: 16px; align-items: center; margin-top: 16px; }
+  #zoomCanvas { width: 105px; height: 105px; flex: 0 0 auto; border: 1px solid #d3dbe7; border-radius: 8px; image-rendering: pixelated; }
+  .hint { font-size: 13px; margin: 0; }
+  .stats { display: flex; justify-content: space-between; gap: 10px; font-size: 14px; margin-bottom: 18px; color: #596579; }
+  .stats strong { color: #233044; }
+  #status { min-height: 3.4em; margin: 0 0 18px; line-height: 1.7; font-weight: 650; }
+  #rgbControls { border: 0; padding: 0; margin: 0; min-width: 0; }
+  .slider-group { display: grid; grid-template-columns: 22px minmax(0, 1fr) 64px; gap: 10px; align-items: center; margin-bottom: 16px; }
+  .slider-group label { font-weight: 750; }
+  input[type="range"] { width: 100%; margin: 0; min-height: 28px; }
+  #rRange { accent-color: #d83b4b; } #gRange { accent-color: #17804a; } #bRange { accent-color: #326bd8; }
+  input[type="number"] { width: 100%; border: 1px solid #b8c3d3; border-radius: 7px; padding: 8px 4px 8px 8px; font: inherit; font-variant-numeric: tabular-nums; }
+  .swatches { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 22px 0; }
+  figure { margin: 0; min-width: 0; }
+  .swatch { height: 84px; border: 1px solid #bac5d6; border-radius: 9px; }
+  figcaption { font-size: 13px; margin-top: 8px; line-height: 1.8; }
+  .rgb-value { display: block; font-size: 12px; font-variant-numeric: tabular-nums; }
+  #correctPreview { background: repeating-linear-gradient(45deg, #edf0f5, #edf0f5 8px, #fff 8px, #fff 16px); }
+  button { border: 0; border-radius: 9px; padding: 13px 18px; background: #275cce; color: #fff; font: inherit; font-weight: 700; cursor: pointer; width: 100%; }
+  button:hover:not(:disabled) { background: #1d48a8; }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  button.secondary { background: #edf2fc; color: #2752a2; margin-top: 10px; }
+  :focus-visible { outline: 3px solid #7457d6; outline-offset: 3px; }
+  #feedback { padding: 14px; background: #f3f6fc; border-radius: 9px; line-height: 1.8; font-size: 14px; margin-bottom: 16px; }
+  .rules { margin-top: 20px; }
+  [hidden] { display: none !important; }
+  @media (max-width: 720px) { main { padding: 22px 14px 36px; } .layout { grid-template-columns: 1fr; } .card { padding: 18px; } }
 </style>
 </head>
 <body>
-
-<h1>🎯 RGB色当てクイズ</h1>
-<p>画像をアップロードして「スタート」！RGBバーで赤丸の中の色を再現しよう。</p>
-
-<input type="file" id="fileInput" accept="image/*"><br>
-<canvas id="gameCanvas" width="400" height="300"></canvas><br>
-<button id="startBtn">スタート</button>
-<div id="status"></div>
-
-<div id="controls">
-  <div class="slider-group">
-    <label>R</label><input type="range" id="rRange" min="0" max="255" value="128">
-    <span id="rVal">128</span>
+<main>
+  <h1>🎯 RGB色当てクイズ</h1>
+  <p class="intro">画像の中の1点を、赤・緑・青の組み合わせで再現しよう。全5問、じっくり考えてOK。</p>
+  <section class="card upload" aria-label="画像の選択">
+    <label for="fileInput">1. 好きな画像を選ぶ</label>
+    <input type="file" id="fileInput" accept="image/*" aria-describedby="fileInfo">
+    <p id="fileInfo" class="hint">画像はこのブラウザ内で処理します。サーバーへの送信はありません。</p>
+  </section>
+  <div class="layout">
+    <section class="card" aria-label="出題画像">
+      <h2>2. 丸の中心の色を観察</h2>
+      <div class="image-stage">
+        <canvas id="gameCanvas" width="720" height="450" role="img" aria-label="画像を選ぶと、ここに出題画像が表示されます"></canvas>
+        <div id="emptyHint">写真やイラストを読み込んで<br>スタート！</div>
+      </div>
+      <div id="targetHelp" class="target-help" hidden>
+        <canvas id="zoomCanvas" width="105" height="105" role="img" aria-label="出題位置の拡大図。中央の枠の中が回答する1ピクセルです"></canvas>
+        <p class="hint">左は出題位置の拡大図。<br>中央の枠の中の1ピクセルが対象です。<br>透明な部分は白背景に重ねた色で出題します。</p>
+      </div>
+    </section>
+    <section class="card" aria-labelledby="answerHeading">
+      <h2 id="answerHeading">3. RGBで色をつくる</h2>
+      <div class="stats"><span id="roundLabel">全5問</span><span>合計 <strong id="scoreLabel">0 / 500</strong> 点</span></div>
+      <p id="status" role="status" aria-live="polite">画像を選ぶとスタートできます。</p>
+      <fieldset id="rgbControls" disabled aria-label="回答する色のRGB値">
+        <div class="slider-group"><label for="rRange">R</label><input type="range" id="rRange" min="0" max="255" value="128" aria-label="赤のスライダー"><input type="number" id="rNumber" min="0" max="255" step="1" value="128" aria-label="赤の数値"></div>
+        <div class="slider-group"><label for="gRange">G</label><input type="range" id="gRange" min="0" max="255" value="128" aria-label="緑のスライダー"><input type="number" id="gNumber" min="0" max="255" step="1" value="128" aria-label="緑の数値"></div>
+        <div class="slider-group"><label for="bRange">B</label><input type="range" id="bRange" min="0" max="255" value="128" aria-label="青のスライダー"><input type="number" id="bNumber" min="0" max="255" step="1" value="128" aria-label="青の数値"></div>
+      </fieldset>
+      <div class="swatches">
+        <figure><div id="preview" class="swatch"></div><figcaption>あなたの色<span id="guessValue" class="rgb-value">RGB(128, 128, 128)</span></figcaption></figure>
+        <figure><div id="correctPreview" class="swatch"></div><figcaption>正解の色<span id="correctValue" class="rgb-value">回答後に表示</span></figcaption></figure>
+      </div>
+      <div id="feedback" aria-live="polite" hidden></div>
+      <button id="startBtn" type="button" disabled>スタート</button>
+      <button id="submitBtn" type="button" hidden disabled>この色で回答</button>
+      <button id="nextBtn" type="button" hidden>次の問題へ</button>
+      <button id="restartBtn" type="button" class="secondary" hidden>最初からやり直す</button>
+    </section>
   </div>
-  <div class="slider-group">
-    <label>G</label><input type="range" id="gRange" min="0" max="255" value="128">
-    <span id="gVal">128</span>
-  </div>
-  <div class="slider-group">
-    <label>B</label><input type="range" id="bRange" min="0" max="255" value="128">
-    <span id="bVal">128</span>
-  </div>
-
-  <div id="preview"></div>
-  <button id="submitBtn">この色で回答！</button>
-</div>
-
+  <p class="hint rules">採点：RGBの距離が小さいほど高得点（各問0〜100点）。時間による減点はありません。スライダーのほか、0〜255の数値を直接入力できます。</p>
+</main>
 <script>
-const canvas = document.getElementById("gameCanvas");
-const ctx = canvas.getContext("2d");
-const fileInput = document.getElementById("fileInput");
-const startBtn = document.getElementById("startBtn");
-const submitBtn = document.getElementById("submitBtn");
-const statusEl = document.getElementById("status");
-const preview = document.getElementById("preview");
-
-const rRange = document.getElementById("rRange");
-const gRange = document.getElementById("gRange");
-const bRange = document.getElementById("bRange");
-const rVal = document.getElementById("rVal");
-const gVal = document.getElementById("gVal");
-const bVal = document.getElementById("bVal");
-
-let img = new Image();
-let correctColor = null;
-let score = 0;
+'use strict';
+const $ = id => document.getElementById(id);
+const canvas = $('gameCanvas');
+const ctx = canvas.getContext('2d');
+const zoom = $('zoomCanvas').getContext('2d');
+// 元画像の1ピクセルを抽出する専用キャンバス。位置マーカーは採色に混ざらない。
+const sampler = document.createElement('canvas');
+sampler.width = sampler.height = 1;
+const sampleCtx = sampler.getContext('2d', { willReadFrequently: true });
+const channels = ['r', 'g', 'b'];
+const maxRounds = 5;
+let image = null;
+let phase = 'empty'; // empty → loading → ready → guessing → revealed → finished
+let loadId = 0;
 let round = 0;
-let maxRounds = 5;
-let startTime = 0;
+let score = 0;
+let correctColor = null;
+let target = null;
 
-// 画像読み込み
-fileInput.addEventListener("change", e => {
-  const file = e.target.files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = ev => {
-    img.onload = () => {
-      canvas.width = img.width;
-      canvas.height = img.height;
-      ctx.drawImage(img, 0, 0);
-    };
-    img.src = ev.target.result;
-  };
-  reader.readAsDataURL(file);
-});
-
-// RGBスライダー更新
+function guessColor() { return channels.map(c => Number($(c + 'Range').value)); }
+function rgb(color) { return `rgb(${color.join(', ')})`; }
+function colorLabel(color) { return `RGB(${color.join(', ')})`; }
 function updatePreview() {
-  const r = rRange.value, g = gRange.value, b = bRange.value;
-  preview.style.background = `rgb(${r},${g},${b})`;
-  rVal.textContent = r;
-  gVal.textContent = g;
-  bVal.textContent = b;
+  const color = guessColor();
+  $('preview').style.background = rgb(color);
+  $('guessValue').textContent = colorLabel(color);
 }
-[rRange, gRange, bRange].forEach(slider =>
-  slider.addEventListener("input", updatePreview)
-);
-updatePreview();
-
-// ゲーム開始
-startBtn.addEventListener("click", () => {
-  if (!img.src) {
-    alert("先に画像をアップロードしてください！");
-    return;
-  }
-  score = 0;
-  round = 0;
-  nextRound();
+function setGuess(color) {
+  channels.forEach((c, i) => { $(c + 'Range').value = $(c + 'Number').value = color[i]; });
+  updatePreview();
+}
+channels.forEach(c => {
+  const range = $(c + 'Range');
+  const number = $(c + 'Number');
+  range.addEventListener('input', () => { number.value = range.value; updatePreview(); });
+  const syncNumber = () => {
+    if (number.value === '' || !Number.isFinite(number.valueAsNumber)) return;
+    range.value = number.value = Math.max(0, Math.min(255, Math.round(number.valueAsNumber)));
+    updatePreview();
+  };
+  number.addEventListener('input', syncNumber);
+  number.addEventListener('change', () => { syncNumber(); number.value = range.value; });
+  number.addEventListener('blur', () => { number.value = range.value; });
 });
-
-// ラウンド進行
+function updateUI() {
+  const guessing = phase === 'guessing';
+  const revealed = phase === 'revealed';
+  const finished = phase === 'finished';
+  $('rgbControls').disabled = !guessing;
+  $('startBtn').hidden = guessing || revealed || finished;
+  $('startBtn').disabled = phase !== 'ready';
+  $('submitBtn').hidden = !guessing;
+  $('submitBtn').disabled = !guessing;
+  $('nextBtn').hidden = !revealed;
+  $('nextBtn').textContent = round === maxRounds ? '結果を見る' : '次の問題へ';
+  $('restartBtn').hidden = !(guessing || revealed || finished);
+  $('restartBtn').textContent = finished ? 'もう一度遊ぶ' : '最初からやり直す';
+  $('scoreLabel').textContent = `${score} / ${maxRounds * 100}`;
+  $('roundLabel').textContent = round ? `第${round}問 / ${maxRounds}` : `全${maxRounds}問`;
+}
+function clearAnswer() {
+  $('feedback').hidden = true;
+  $('correctPreview').style.removeProperty('background');
+  $('correctValue').textContent = '回答後に表示';
+  correctColor = null;
+}
+function drawImage() {
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+}
+function drawTarget() {
+  drawImage();
+  const x = (target.x + .5) * canvas.width / image.naturalWidth;
+  const y = (target.y + .5) * canvas.height / image.naturalHeight;
+  // 白黒二重リングなので、明るい画像でも暗い画像でも見つけやすい。
+  ctx.beginPath();
+  ctx.arc(x, y, 12, 0, Math.PI * 2);
+  ctx.strokeStyle = '#fff'; ctx.lineWidth = 5; ctx.stroke();
+  ctx.strokeStyle = '#111'; ctx.lineWidth = 2; ctx.stroke();
+  canvas.setAttribute('aria-label', `第${round}問の画像。白黒の丸の中心の色を再現してください`);
+  const scale = 7;
+  zoom.fillStyle = '#fff';
+  zoom.fillRect(0, 0, 105, 105);
+  zoom.imageSmoothingEnabled = false;
+  // 出題ピクセルを中央に固定し、画像の端の外側は白で表示する。
+  zoom.drawImage(image, (7 - target.x) * scale, (7 - target.y) * scale,
+    image.naturalWidth * scale, image.naturalHeight * scale);
+  zoom.strokeStyle = '#fff'; zoom.lineWidth = 3;
+  zoom.strokeRect(49, 49, scale, scale);
+  zoom.strokeStyle = '#111'; zoom.lineWidth = 1;
+  zoom.strokeRect(49, 49, scale, scale);
+  $('targetHelp').hidden = false;
+}
 function nextRound() {
   round++;
-  if (round > maxRounds) {
-    statusEl.textContent = `ゲーム終了！合計スコア: ${Math.round(score)}`;
-    return;
-  }
-
-  ctx.drawImage(img, 0, 0);
-  statusEl.textContent = `ラウンド ${round}/${maxRounds}　スコア: ${Math.round(score)}`;
-
-  const x = Math.floor(Math.random() * canvas.width);
-  const y = Math.floor(Math.random() * canvas.height);
-  const pixel = ctx.getImageData(x, y, 1, 1).data;
-  correctColor = `rgb(${pixel[0]},${pixel[1]},${pixel[2]})`;
-
-  ctx.strokeStyle = "red";
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.arc(x, y, 10, 0, Math.PI * 2);
-  ctx.stroke();
-
-  startTime = Date.now();
+  clearAnswer();
+  setGuess([128, 128, 128]);
+  target = {
+    x: Math.floor(Math.random() * image.naturalWidth),
+    y: Math.floor(Math.random() * image.naturalHeight)
+  };
+  sampleCtx.fillStyle = '#fff';
+  sampleCtx.fillRect(0, 0, 1, 1);
+  sampleCtx.drawImage(image, target.x, target.y, 1, 1, 0, 0, 1, 1);
+  correctColor = Array.from(sampleCtx.getImageData(0, 0, 1, 1).data).slice(0, 3);
+  drawTarget();
+  phase = 'guessing';
+  $('status').textContent = '丸の中心の色を、RGBで再現してみよう。';
+  updateUI();
 }
-
-// 回答チェック
-submitBtn.addEventListener("click", () => {
-  if (!correctColor) return;
-  const time = (Date.now() - startTime) / 1000;
-  const guess = `rgb(${rRange.value},${gRange.value},${bRange.value})`;
-  const diff = colorDiff(guess, correctColor);
-  const points = Math.max(0, 100 - diff * 0.8 - time * 10);
+function startGame() {
+  if (!image || phase === 'loading') return;
+  round = score = 0;
+  nextRound();
+}
+$('startBtn').addEventListener('click', startGame);
+$('restartBtn').addEventListener('click', startGame);
+$('submitBtn').addEventListener('click', () => {
+  // 回答済みの問題には再加点しない。自動遷移タイマーも使わない。
+  if (phase !== 'guessing') return;
+  phase = 'revealed';
+  const guess = guessColor();
+  const distance = Math.hypot(...guess.map((value, i) => value - correctColor[i]));
+  const points = Math.round(100 * (1 - distance / Math.hypot(255, 255, 255)));
   score += points;
-  statusEl.textContent = `色差: ${diff.toFixed(1)}　+${Math.round(points)}点 (${Math.round(score)}点累計)`;
-  setTimeout(nextRound, 1000);
+  $('correctPreview').style.background = rgb(correctColor);
+  $('correctValue').textContent = colorLabel(correctColor);
+  $('feedback').textContent = `${points}点！ 各成分の差：R ${Math.abs(guess[0] - correctColor[0])} / G ${Math.abs(guess[1] - correctColor[1])} / B ${Math.abs(guess[2] - correctColor[2])}`;
+  $('feedback').hidden = false;
+  $('status').textContent = 'あなたの色と正解の色を見比べてみよう。';
+  updateUI();
+  $('nextBtn').focus({ preventScroll: true });
 });
-
-// 色差計算
-function colorDiff(c1, c2) {
-  const rgb1 = c1.match(/\d+/g).map(Number);
-  const rgb2 = c2.match(/\d+/g).map(Number);
-  return Math.sqrt(
-    (rgb1[0] - rgb2[0]) ** 2 +
-    (rgb1[1] - rgb2[1]) ** 2 +
-    (rgb1[2] - rgb2[2]) ** 2
-  );
-}
+$('nextBtn').addEventListener('click', () => {
+  if (phase !== 'revealed') return;
+  if (round < maxRounds) {
+    nextRound();
+    $('rRange').focus({ preventScroll: true });
+  } else {
+    phase = 'finished';
+    $('status').textContent = `全${maxRounds}問終了！ 合計${score}点 / ${maxRounds * 100}点（平均${(score / maxRounds).toFixed(1)}点）`;
+    updateUI();
+    $('restartBtn').focus({ preventScroll: true });
+  }
+});
+$('fileInput').addEventListener('change', async event => {
+  const file = event.target.files[0];
+  if (!file) return;
+  const id = ++loadId;
+  phase = 'loading';
+  image = target = null;
+  round = score = 0;
+  clearAnswer();
+  setGuess([128, 128, 128]);
+  $('targetHelp').hidden = true;
+  $('emptyHint').hidden = false;
+  $('emptyHint').textContent = '画像を読み込み中…';
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  $('status').textContent = '画像を読み込んでいます。';
+  $('fileInfo').textContent = '画像はこのブラウザ内で処理します。';
+  canvas.setAttribute('aria-label', '画像を読み込み中');
+  updateUI();
+  const url = URL.createObjectURL(file);
+  try {
+    const candidate = new Image();
+    await new Promise((resolve, reject) => {
+      candidate.onload = resolve;
+      candidate.onerror = () => reject(new Error('decode'));
+      candidate.src = url;
+    });
+    if (id !== loadId) return; // 先に選んだ画像の読込完了で、新しい画像を上書きしない。
+    if (!candidate.naturalWidth || !candidate.naturalHeight) throw new Error('empty');
+    image = candidate;
+    // 表示だけを縮小し、答えは常に元画像の1ピクセルから取得する。
+    const scale = Math.min(1, 1200 / Math.max(image.naturalWidth, image.naturalHeight));
+    canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+    canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+    drawImage();
+    canvas.setAttribute('aria-label', '読み込んだ画像。スタートでランダムな位置を出題します');
+    $('emptyHint').hidden = true;
+    $('fileInfo').textContent = `${file.name} · ${image.naturalWidth} × ${image.naturalHeight}px · ブラウザ内で処理`;
+    phase = 'ready';
+    $('status').textContent = '準備OK！ スタートで全5問のクイズを始めよう。';
+  } catch {
+    if (id !== loadId) return;
+    image = null;
+    phase = 'empty';
+    $('emptyHint').textContent = '別の画像を選んでください';
+    $('status').textContent = '画像を読み込めませんでした。JPEG・PNG・WebPなど、ブラウザで表示できる画像を選んでください。';
+  } finally {
+    URL.revokeObjectURL(url);
+    if (id === loadId) updateUI();
+  }
+  // 同じファイルも再選択できるようにする。
+  if (id === loadId) event.target.value = '';
+});
+updatePreview();
+updateUI();
 </script>
-
 </body>
 </html>
